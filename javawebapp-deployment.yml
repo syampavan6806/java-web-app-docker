@@ -1,35 +1,74 @@
----
-apiVersion: v1
-kind: ReplicationController
+apiVersion: apps/v1
+kind: Deployment
 metadata:
-  labels:
-    name: javawebapp
-  name: java-controller
+  name: javawebapp
+  namespace: test-ns
 spec:
-  replicas: 1
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  minReadySeconds: 30
+  selector:
+    matchLabels:
+      app: javawebapp
   template:
     metadata:
       labels:
-        name: javawebapp
+        app: javawebapp
     spec:
       containers:
-      - image: dockerhandson/java-web-app
-        name: javawebapp
+      - name: javawebapp
+        image: dockersyampawan/java-web-app-docker:TAG
         ports:
-        - name: javawebapp
-          containerPort: 8080  
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: 300m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 500Mi
 ---
-# Node Port Service
 apiVersion: v1
 kind: Service
 metadata:
-  labels:
-    name: javawebapp
-  name: javawebapp
+   name: javawebappsvc
+   namespace: test-ns
 spec:
   type: NodePort
-  ports:
-    - port: 8080
-      targetPort: 8080
   selector:
+    app: javawebapp
+  ports:
+  - port: 80
+    targetPort: 8080
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: hpajavawebapp
+  namespace: test-ns
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
     name: javawebapp
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 80
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+
+
